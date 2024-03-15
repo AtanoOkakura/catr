@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::io::BufRead;
 
 use clap::{App, Arg};
 
@@ -47,7 +48,78 @@ pub fn get_args() -> MyResult<Config> {
     })
 }
 
+pub fn open(filename: &str) -> MyResult<Box<dyn std::io::BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(std::io::BufReader::new(std::io::stdin()))),
+        _ => Ok(Box::new(std::io::BufReader::new(std::fs::File::open(
+            filename,
+        )?))),
+    }
+}
+
+fn show_content(
+    stream: Box<dyn std::io::BufRead>,
+    line_num: &mut i32,
+    number: bool,
+    number_nonbrank: bool,
+) {
+    for line in stream.lines() {
+        let line = line.unwrap();
+        if number {
+            println!("{:>6}\t{}", line_num, line);
+            *line_num += 1;
+        } else if number_nonbrank {
+            if !line.is_empty() {
+                println!("{:>6}\t{}", line_num, line);
+                *line_num += 1;
+            } else {
+                println!();
+            }
+        } else {
+            println!("{}", line);
+        }
+    }
+}
+
 pub fn run(config: Config) -> MyResult<()> {
-    dbg!(config);
+    let mut line_num = 1;
+    for filename in config.files {
+        match open(&filename) {
+            Err(err) => eprintln!("Failed to open {}: {}", filename, err),
+            Ok(buffer) => show_content(
+                buffer,
+                &mut line_num,
+                config.number_lines,
+                config.number_nonblank_lines,
+            ),
+        }
+    }
     Ok(())
 }
+
+// pub fn run(config: Config) -> MyResult<()> {
+//     for filename in config.files {
+//         match open(&filename) {
+//             Err(err) => eprintln!("Failed to open {}: {}", filename, err),
+//             Ok(file) => {
+//                 let mut last_num = 0;
+//                 for (line_num, line) in file.lines().enumerate() {
+//                     let line = line?;
+//                     if config.number_lines {
+//                         println!("{:>6}\t{}", line_num + 1, line);
+//                     } else if config.number_nonblank_lines {
+//                         if !line.is_empty() {
+//                             println!("{:>6}\t{}", last_num + 1, line);
+//                             last_num += 1;
+//                         } else {
+//                             println!();
+//                         }
+//                     } else {
+//                         println!("{}", line);
+//                     }
+//                 }
+//             }
+//         }
+//     }
+//     Ok(())
+// }
